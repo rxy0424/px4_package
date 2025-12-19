@@ -19,14 +19,15 @@ jobs:
           ref: ${{ github.event.inputs.ref }}
           submodules: recursive
 
-      - name: Create full archive (including .git)
+      - name: Create archive (avoid self-inclusion)
         run: |
-          # 关键：输出到父目录，避免 tar 打包自己
-          tar -czf ../px4-full-with-git.tar.gz .
+          # 输出到临时位置（如 /tmp 或 workspace 外）
+          tar -czf /tmp/px4-full-with-git.tar.gz .
+          # 移回工作区根目录，供 upload-artifact 使用
+          mv /tmp/px4-full-with-git.tar.gz .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: px4-full-source-with-git
-          path: ../px4-full-with-git.tar.gz
-          retention-days: 7
+          path: px4-full-with-git.tar.gz  # ✅ 现在在工作区内
