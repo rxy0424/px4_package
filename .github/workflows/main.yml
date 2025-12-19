@@ -1,33 +1,101 @@
-name: Package PX4 with submodules
+name: Package PX4 (Full Source, Reproducible)
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref to checkout (e.g., v1.16.0, main)'
+        description: 'Git ref to checkout (tag / branch / commit)'
         required: true
         default: 'v1.16.0'
 
 jobs:
   package:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout PX4 with recursive submodules
+      - name: Checkout PX4 with full history and submodules
         uses: actions/checkout@v4
         with:
           repository: PX4/PX4-Autopilot
           ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0              # 🔴 完整历史
           submodules: recursive
 
-      - name: Create archive (avoid self-inclusion)
+      - name: Collect repository metadata
         run: |
-          # 输出到临时位置（如 /tmp 或 workspace 外）
-          tar -czf /tmp/px4-full-with-git.tar.gz .
-          # 移回工作区根目录，供 upload-artifact 使用
-          mv /tmp/px4-full-with-git.tar.gz .
+          set -e
+
+          echo "PX4 Source Package Metadata" > PX4_PACKAGE_INFO.txt
+          echo "============================" >> PX4_PACKAGE_INFO.txt
+          echo "" >> PX4_PACKAGE_INFO.txt
+
+          echo "Ref: ${{ github.event.inputs.ref }}" >> PX4_PACKAGE_INFO.txt
+          echo "Commit:" >> PX4_PACKAGE_INFO.txt
+          git rev-parse HEAD >> PX4_PACKAGE_INFO.txt
+          echo "" >> PX4_PACKAGE_INFO.txt
+
+          echo "Describe:" >> PX4_PACKAGE_INFO.txt
+          git describe --tags --dirty --always >> PX4_PACKAGE_INFO.txt || true
+          echo "" >> PX4_PACKAGE_INFO.txt
+
+          echo "Build date (UTC):" >> PX4_PACKAGE_INFO.txt
+          date -u +"%Y-%m-%d %H:%M:%S UTC" >> PX4_PACKAGE_INFO.txt
+          echo "" >> PX4_PACKAGE_INFO.txt
+
+          echo "Submodules:" >> PX4_PACKAGE_INFO.txt
+          git submodule status --recursive >> PX4_PACKAGE_INFO.txt
+
+      - name: Create README for archive
+        run: |
+          cat > README_PACKAGE.md << 'EOF'
+          # PX4 Full Source Package
+
+          This archive contains the full PX4-Autopilot source tree with:
+
+          - Complete git history
+          - All submodules (recursively initialized)
+          - Original directory structure preserved
+
+          ## Intended usage
+
+          - Offline development
+          - Reproducible research
+          - Academic or industrial archiving
+          - Code review and traceability
+
+          ## Notes
+
+          - The `.git` directory is preserved.
+          - Submodule commits are fixed to the versions referenced
+            by the selected PX4 ref.
+          - Integrity can be verified using the provided SHA256 checksum.
+
+          EOF
+
+      - name: Create reproducible archive
+        run: |
+          set -e
+
+          ARCHIVE_NAME="px4-full-source-${{ github.event.inputs.ref }}.tar.gz"
+
+          # 打包到 /tmp，避免自包含
+          tar \
+            --sort=name \
+            --owner=0 --group=0 --numeric-owner \
+            --mtime="UTC 2024-01-01" \
+            -czf "/tmp/${ARCHIVE_NAME}" \
+            README_PACKAGE.md \
+            PX4_PACKAGE_INFO.txt \
+            .
+
+          mv "/tmp/${ARCHIVE_NAME}" .
+
+          sha256sum "${ARCHIVE_NAME}" > "${ARCHIVE_NAME}.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: px4-full-source-with-git
-          path: px4-full-with-git.tar.gz  # ✅ 现在在工作区内
+          name: px4-full-source-${{ github.event.inputs.ref }}
+          path: |
+            px4-full-source-${{ github.event.inputs.ref }}.tar.gz
+            px4-full-source-${{ github.event.inputs.ref }}.tar.gz.sha256
