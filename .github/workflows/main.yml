@@ -1,0 +1,23 @@
+name: Package PX4 with submodules
+
+on: [workflow_dispatch]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v1.16.0
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Create archive
+        run: tar -czf px4-full.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: px4-full-source
+          path: px4-full.tar.gz
