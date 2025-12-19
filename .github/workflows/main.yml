@@ -1,24 +1,32 @@
 name: Package PX4 with submodules
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to checkout (e.g., v1.16.0, main)'
+        required: true
+        default: 'v1.16.0'
 
 jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout PX4 with recursive submodules
         uses: actions/checkout@v4
         with:
           repository: PX4/PX4-Autopilot
-          ref: v1.16.0
+          ref: ${{ github.event.inputs.ref }}
           submodules: recursive
-          fetch-depth: 0
 
-      - name: Create archive
-        run: sleep 10 && tar -czf px4-full.tar.gz .
+      - name: Create full archive (including .git)
+        run: |
+          # 关键：输出到父目录，避免 tar 打包自己
+          tar -czf ../px4-full-with-git.tar.gz .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: px4-full-source
-          path: px4-full.tar.gz
+          name: px4-full-source-with-git
+          path: ../px4-full-with-git.tar.gz
+          retention-days: 7
