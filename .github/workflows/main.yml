@@ -15,7 +15,7 @@ jobs:
           fetch-depth: 0
 
       - name: Create archive
-        run: tar --exclude='.git' -czf px4-full.tar.gz .
+        run: sleep 10 && tar -czf px4-full.tar.gz .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
